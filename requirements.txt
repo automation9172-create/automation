@@ -1,0 +1,12 @@
+# Python 3.11 is recommended.
+# FFmpeg and FFprobe must be installed separately and available on PATH.
+Pillow>=10.0
+pydub>=0.25
+python-dotenv>=1.0
+requests>=2.31
+google-api-python-client>=2.170
+google-auth>=2.40
+google-auth-httplib2>=0.2
+google-auth-oauthlib>=1.2
+
+truststore>=0.10; platform_system == "Windows"

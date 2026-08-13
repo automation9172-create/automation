@@ -1,0 +1,24 @@
+.env
+.env.*
+!.env.example
+.history/
+.venv/
+client_secret*.json
+cined.json
+youtube_token*.json
+.phonics_work/*
+!.phonics_work/content_history.json
+!.phonics_work/content_history.backup.json
+!.phonics_work/youtube_upload_history.json
+!.phonics_work/youtube_upload_history.backup.json
+outputs/
+logs/
+render_*/
+tmp/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+downloaded_videos/**/.source_*
+downloaded_videos/**/*.part
+# This old unreviewed library is not used by the exact-object selector.
+assets/videos/

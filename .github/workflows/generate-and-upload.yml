@@ -1,0 +1,192 @@
+name: Generate and upload A-Z phonics
+
+on:
+  schedule:
+    # Primary runs start four hours before each public YouTube slot. YouTube's
+    # own scheduler releases an already-uploaded video at the exact target time.
+    - cron: "17 4 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "17 5 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "38 15 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "38 16 * * *"
+      timezone: "Asia/Kolkata"
+  workflow_dispatch:
+    inputs:
+      privacy_status:
+        description: "Manual-run visibility (use private for testing)"
+        required: true
+        default: "private"
+        type: choice
+        options:
+          - private
+          - unlisted
+          - public
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phonics-generation-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  generate-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+      YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
+      YOUTUBE_CHANNEL_KEY: ${{ vars.YOUTUBE_CHANNEL_KEY || 'youtube_primary' }}
+
+    steps:
+      - name: Check out engine and media library
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Resolve exact publishing slot and suppress duplicate recovery runs
+        id: slot
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            case "${{ github.event.schedule }}" in
+              "17 4 * * *"|"17 5 * * *") SLOT_NAME="morning" ;;
+              "38 15 * * *"|"38 16 * * *") SLOT_NAME="evening" ;;
+              *) echo "Unknown schedule trigger"; exit 1 ;;
+            esac
+            python -m phonics_engine.youtube_upload slot --project-root . --name "$SLOT_NAME" >> "$GITHUB_OUTPUT"
+            echo "privacy_status=public" >> "$GITHUB_OUTPUT"
+            echo "slot_name=$SLOT_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish_at=" >> "$GITHUB_OUTPUT"
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "privacy_status=${{ inputs.privacy_status }}" >> "$GITHUB_OUTPUT"
+            echo "slot_name=manual" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report skipped recovery run
+        if: steps.slot.outputs.needed != 'true'
+        run: echo "The ${{ steps.slot.outputs.slot_name }} publishing slot is already uploaded; no duplicate was generated."
+
+      - name: Restore Git LFS object cache
+        if: steps.slot.outputs.needed == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes', 'assets/**', 'downloaded_videos/**') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-
+
+      - name: Materialize required media files
+        if: steps.slot.outputs.needed == 'true'
+        run: |
+          git lfs install --local
+          git lfs pull
+
+      - name: Install FFmpeg, fonts, and Python packages
+        if: steps.slot.outputs.needed == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg fonts-dejavu-core fonts-liberation
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Confirm required secrets are present
+        if: steps.slot.outputs.needed == 'true'
+        shell: bash
+        run: |
+          test -n "$PIXABAY_API_KEY" || { echo "Missing PIXABAY_API_KEY"; exit 1; }
+          test -n "$PEXELS_API_KEY" || { echo "Missing PEXELS_API_KEY"; exit 1; }
+          test -n "$YOUTUBE_TOKEN_JSON" || { echo "Missing YOUTUBE_TOKEN_JSON"; exit 1; }
+
+      - name: Test and validate asset inventory
+        if: steps.slot.outputs.needed == 'true'
+        run: |
+          python -m pytest -q
+          python generate.py --validate
+
+      - name: Generate one original 4K A-Z lesson
+        if: steps.slot.outputs.needed == 'true'
+        run: python generate.py --channel "$YOUTUBE_CHANNEL_KEY"
+
+      # Persist the plan before uploading. If YouTube is temporarily down,
+      # a rerun cannot unknowingly regenerate and publish the same lesson.
+      - name: Persist shared originality history
+        if: steps.slot.outputs.needed == 'true'
+        shell: bash
+        run: |
+          git config user.name "phonics-history-bot"
+          git config user.email "phonics-history-bot@users.noreply.github.com"
+          git add -f .phonics_work/content_history.json .phonics_work/content_history.backup.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: preserve phonics originality history [skip ci]"
+            for ATTEMPT in 1 2 3 4 5; do
+              if git push origin "HEAD:${{ github.event.repository.default_branch }}"; then
+                break
+              fi
+              if [[ "$ATTEMPT" == "5" ]]; then
+                exit 1
+              fi
+              echo "Originality-history push attempt $ATTEMPT failed; rebasing and retrying"
+              git fetch origin "${{ github.event.repository.default_branch }}"
+              git rebase "origin/${{ github.event.repository.default_branch }}"
+              sleep $((ATTEMPT * 10))
+            done
+          fi
+
+      - name: Upload video and selected thumbnail to YouTube
+        if: steps.slot.outputs.needed == 'true'
+        shell: bash
+        run: |
+          ARGS=(python -m phonics_engine.youtube_upload upload --project-root . --privacy-status "${{ steps.slot.outputs.privacy_status }}")
+          if [[ -n "${{ steps.slot.outputs.publish_at }}" ]]; then
+            ARGS+=(--publish-at "${{ steps.slot.outputs.publish_at }}")
+          fi
+          "${ARGS[@]}"
+
+      - name: Persist YouTube upload receipt
+        if: steps.slot.outputs.needed == 'true'
+        shell: bash
+        run: |
+          git add -f .phonics_work/youtube_upload_history.json .phonics_work/youtube_upload_history.backup.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: record YouTube upload receipt [skip ci]"
+            for ATTEMPT in 1 2 3 4 5; do
+              if git push origin "HEAD:${{ github.event.repository.default_branch }}"; then
+                exit 0
+              fi
+              echo "Receipt push attempt $ATTEMPT failed; retrying"
+              git fetch origin "${{ github.event.repository.default_branch }}"
+              git rebase "origin/${{ github.event.repository.default_branch }}"
+              sleep $((ATTEMPT * 10))
+            done
+            exit 1
+          fi
+
+      - name: Keep small diagnostics for one day when a run fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phonics-failure-${{ github.run_id }}
+          path: |
+            logs/*.log
+            logs/*.json
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Remove render cache and generated files from the runner
+        if: always() && steps.slot.outputs.needed == 'true'
+        run: python -m phonics_engine.cleanup --project-root . --ci
