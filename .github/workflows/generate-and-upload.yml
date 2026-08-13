@@ -42,6 +42,7 @@ jobs:
       YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
       YOUTUBE_CHANNEL_KEY: ${{ vars.YOUTUBE_CHANNEL_KEY || 'youtube_primary' }}
+      PRODUCTION_START_DATE: ${{ vars.PRODUCTION_START_DATE || '2099-12-31' }}
 
     steps:
       - name: Check out engine and media library
@@ -62,6 +63,15 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            TODAY_IST=$(TZ=Asia/Kolkata date +%F)
+            if [[ "$TODAY_IST" < "$PRODUCTION_START_DATE" ]]; then
+              echo "publish_at=" >> "$GITHUB_OUTPUT"
+              echo "needed=false" >> "$GITHUB_OUTPUT"
+              echo "privacy_status=public" >> "$GITHUB_OUTPUT"
+              echo "slot_name=not-started" >> "$GITHUB_OUTPUT"
+              echo "Production starts on $PRODUCTION_START_DATE; today is $TODAY_IST."
+              exit 0
+            fi
             case "${{ github.event.schedule }}" in
               "17 4 * * *"|"17 5 * * *") SLOT_NAME="morning" ;;
               "38 15 * * *"|"38 16 * * *") SLOT_NAME="evening" ;;

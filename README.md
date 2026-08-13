@@ -140,6 +140,9 @@ Create these repository secrets:
 
 Create these optional repository variables:
 
+- `PRODUCTION_START_DATE` — required for scheduled production; use an India
+  calendar date such as `2026-08-14`. With no value, scheduled public runs stay
+  safely disabled while manual private tests remain available.
 - `YOUTUBE_CATEGORY_ID` — `27` for Education (default).
 - `YOUTUBE_CHANNEL_KEY` — a stable history label such as
   `phonics_channel_1`.
