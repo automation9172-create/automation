@@ -100,15 +100,16 @@ Completed files use `outputs/phonics_A_to_Z_YYYYMMDD_HHMMSS.mp4`. Each run also
 writes a log and an auditable plan/manifest under `logs/`. Failed and dry runs
 do not consume a history combination.
 
-## GitHub Actions: two exact-time publications every day
+## GitHub Actions: three exact-time publications every day
 
-The included workflow publishes at **08:17** and **19:38** in the
-`Asia/Kolkata` timezone. Primary jobs start four hours early, at **04:17** and
-**15:38**, so the 4K render, upload, and YouTube processing finish before the
-public slot. YouTube's `publishAt` scheduler releases the already-uploaded
-private video at the exact target time. Recovery triggers run one hour after
-each primary start; the durable slot receipt makes them skip when the primary
-upload succeeded, while allowing a failed primary run to be replaced.
+The included workflow publishes at **08:17**, **14:47**, and **19:38** in the
+`Asia/Kolkata` timezone. Primary jobs start four hours early, at **04:17**,
+**10:47**, and **15:38**, so the 4K render, upload, and YouTube processing finish
+before the public slot. YouTube's `publishAt` scheduler releases the
+already-uploaded private video at the exact target time. Recovery triggers run
+one hour after each primary start; the durable slot receipt makes them skip
+when the primary upload succeeded, while allowing a failed primary run to be
+replaced.
 
 Each production run generates one 4K lesson, commits the shared originality
 history, uploads the MP4 and selected thumbnail, records the returned YouTube
@@ -140,9 +141,9 @@ Create these repository secrets:
 
 Create these optional repository variables:
 
-- `PRODUCTION_START_DATE` — required for scheduled production; use an India
-  calendar date such as `2026-08-14`. With no value, scheduled public runs stay
-  safely disabled while manual private tests remain available.
+- `PRODUCTION_START_DATE` — optional scheduled-production override; use an India
+  calendar date such as `2026-08-18`. This repository defaults to that date,
+  and the variable lets you postpone scheduled production without editing code.
 - `YOUTUBE_CATEGORY_ID` — `27` for Education (default).
 - `YOUTUBE_CHANNEL_KEY` — a stable history label such as
   `phonics_channel_1`.
@@ -165,8 +166,8 @@ requested.
 Use a **private repository** because the project contains your proprietary
 voice recordings, reviewed footage library, and generation strategy. Never
 commit the OAuth token or API keys. Private repositories consume GitHub-hosted
-Actions minutes; two 4K software renders per day may exceed the free monthly
-allowance, so configure an Actions budget/payment method or attach a
+Actions minutes; three 4K software renders per day will likely exceed the free
+monthly allowance, so configure an Actions budget/payment method or attach a
 self-hosted runner before production.
 
 The media library exceeds normal Git file limits, so `.gitattributes` sends
@@ -187,7 +188,7 @@ included. The unused unreviewed `assets/videos` folder stays ignored. Do not
 force-add `.env`, `client_secret.json`, or `youtube_token.json`.
 
 The workflow caches `.git/lfs` by the media-library hash. The first run and any
-run after media changes download LFS objects; unchanged twice-daily runs restore
+run after media changes download LFS objects; unchanged daily runs restore
 them from the Actions cache before `git lfs pull`. This substantially reduces
 repeated Git LFS bandwidth, but the account still needs enough LFS storage for
 the initial media upload.

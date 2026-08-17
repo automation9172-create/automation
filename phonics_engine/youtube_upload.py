@@ -21,6 +21,7 @@ UPLOAD_SOCKET_TIMEOUT_SECONDS = 180
 UPLOAD_CHUNK_MIB = 2
 PUBLISH_SLOTS = {
     "morning": datetime_time(hour=8, minute=17),
+    "afternoon": datetime_time(hour=14, minute=47),
     "evening": datetime_time(hour=19, minute=38),
 }
 _ORIGINAL_GETADDRINFO = socket.getaddrinfo

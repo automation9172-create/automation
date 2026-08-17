@@ -59,6 +59,7 @@ def test_scheduled_slots_are_exact_india_times_in_utc() -> None:
     now = datetime(2026, 8, 11, 0, 0, tzinfo=timezone.utc)
 
     assert scheduled_slot("morning", now=now) == "2026-08-11T02:47:00Z"
+    assert scheduled_slot("afternoon", now=now) == "2026-08-11T09:17:00Z"
     assert scheduled_slot("evening", now=now) == "2026-08-11T14:08:00Z"
     assert _normalise_publish_at("2026-08-11T08:17:00+05:30") == "2026-08-11T02:47:00Z"
 

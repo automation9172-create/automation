@@ -8,6 +8,10 @@ on:
       timezone: "Asia/Kolkata"
     - cron: "17 5 * * *"
       timezone: "Asia/Kolkata"
+    - cron: "47 10 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "47 11 * * *"
+      timezone: "Asia/Kolkata"
     - cron: "38 15 * * *"
       timezone: "Asia/Kolkata"
     - cron: "38 16 * * *"
@@ -42,7 +46,7 @@ jobs:
       YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
       YOUTUBE_CHANNEL_KEY: ${{ vars.YOUTUBE_CHANNEL_KEY || 'youtube_primary' }}
-      PRODUCTION_START_DATE: ${{ vars.PRODUCTION_START_DATE || '2099-12-31' }}
+      PRODUCTION_START_DATE: ${{ vars.PRODUCTION_START_DATE || '2026-08-18' }}
 
     steps:
       - name: Check out engine and media library
@@ -74,6 +78,7 @@ jobs:
             fi
             case "${{ github.event.schedule }}" in
               "17 4 * * *"|"17 5 * * *") SLOT_NAME="morning" ;;
+              "47 10 * * *"|"47 11 * * *") SLOT_NAME="afternoon" ;;
               "38 15 * * *"|"38 16 * * *") SLOT_NAME="evening" ;;
               *) echo "Unknown schedule trigger"; exit 1 ;;
             esac
