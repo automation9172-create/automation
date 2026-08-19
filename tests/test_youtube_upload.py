@@ -7,6 +7,9 @@ import pytest
 from PIL import Image
 
 from phonics_engine.youtube_upload import (
+    APPROVED_VIDEO_TITLES,
+    YOUTUBE_MANAGE_SCOPE,
+    YOUTUBE_SCOPES,
     YOUTUBE_THUMBNAIL_MAX_BYTES,
     YOUTUBE_UPLOAD_SCOPE,
     _metadata,
@@ -32,10 +35,21 @@ def test_upload_metadata_is_derived_from_the_completed_plan() -> None:
     title, description, tags = _metadata(manifest)
 
     assert len(title) <= 100
-    assert any(word in title for word in ("Apple", "Butterfly", "Mango", "Zebra", "A–Z"))
+    assert title == APPROVED_VIDEO_TITLES[0]
     assert "original teacher and child voice recordings" in description
     assert "phonics song" in tags
     assert YOUTUBE_UPLOAD_SCOPE == "https://www.googleapis.com/auth/youtube.upload"
+    assert YOUTUBE_MANAGE_SCOPE == "https://www.googleapis.com/auth/youtube.force-ssl"
+    assert YOUTUBE_SCOPES == (YOUTUBE_UPLOAD_SCOPE, YOUTUBE_MANAGE_SCOPE)
+
+
+def test_upload_titles_rotate_deterministically_through_only_approved_titles() -> None:
+    manifest = {"scenes": []}
+
+    selected = [_metadata(manifest, title_index=index)[0] for index in range(12)]
+
+    assert selected[:6] == list(APPROVED_VIDEO_TITLES)
+    assert selected[6:] == list(APPROVED_VIDEO_TITLES)
 
 
 def test_upload_receipt_is_mirrored_and_idempotent(tmp_path) -> None:

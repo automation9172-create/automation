@@ -19,9 +19,9 @@ on:
   workflow_dispatch:
     inputs:
       privacy_status:
-        description: "Manual-run visibility (use private for testing)"
+        description: "Manual-run visibility"
         required: true
-        default: "private"
+        default: "public"
         type: choice
         options:
           - private

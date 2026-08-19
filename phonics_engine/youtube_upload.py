@@ -16,12 +16,22 @@ from zoneinfo import ZoneInfo
 
 
 YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
+YOUTUBE_MANAGE_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl"
+YOUTUBE_SCOPES = (YOUTUBE_UPLOAD_SCOPE, YOUTUBE_MANAGE_SCOPE)
 RETRIABLE_HTTP_STATUSES = {408, 429, 500, 502, 503, 504}
 MAX_RETRIES = 10
 UPLOAD_SOCKET_TIMEOUT_SECONDS = 180
 UPLOAD_CHUNK_MIB = 2
 YOUTUBE_THUMBNAIL_MAX_BYTES = 2 * 1024 * 1024
 YOUTUBE_THUMBNAIL_TARGET_BYTES = 1_900_000
+APPROVED_VIDEO_TITLES = (
+    "Phonics Song with Two Words – A for Apple – ABC Alphabet Sounds for Children",
+    "A for Apple, B for Ball | Complete ABC Repeat-Along Lesson",
+    "Learn Letters A–Z | Teacher and Child Phonics for Preschool",
+    "ABC Sounds and Words | Colorful Alphabet Learning for Kids",
+    "Capital and Small Letters A–Z | Listen, Look and Repeat",
+    "English Alphabet for Toddlers | A for Apple to Z for Zebra",
+)
 PUBLISH_SLOTS = {
     "morning": datetime_time(hour=8, minute=17),
     "afternoon": datetime_time(hour=14, minute=47),
@@ -138,7 +148,8 @@ def authorize(client_secrets: Path, token_output: Path) -> int:
     _, _, InstalledAppFlow, _, _, _ = _google_modules()
     if not client_secrets.is_file():
         raise FileNotFoundError(f"OAuth client file not found: {client_secrets}")
-    flow = InstalledAppFlow.from_client_secrets_file(str(client_secrets), [YOUTUBE_UPLOAD_SCOPE])
+    _configure_secure_network()
+    flow = InstalledAppFlow.from_client_secrets_file(str(client_secrets), list(YOUTUBE_SCOPES))
     credentials = flow.run_local_server(port=0, access_type="offline", prompt="consent")
     if not credentials.refresh_token:
         raise RuntimeError("Google did not return a refresh token; revoke the old grant and authorize again")
@@ -169,7 +180,7 @@ def _credentials(token_path: Path):
         raise FileNotFoundError(
             "No YouTube refresh token found. Run the authorize command locally, then add YOUTUBE_TOKEN_JSON in GitHub."
         )
-    credentials = Credentials.from_authorized_user_info(info, [YOUTUBE_UPLOAD_SCOPE])
+    credentials = Credentials.from_authorized_user_info(info, list(YOUTUBE_SCOPES))
     if not credentials.valid:
         if credentials.expired and credentials.refresh_token:
             credentials.refresh(Request())
@@ -200,12 +211,12 @@ def check_auth(token_path: Path) -> int:
     credentials = _credentials(token_path)
     if not credentials.refresh_token:
         raise RuntimeError("The token has no refresh token for unattended uploads")
-    if not credentials.has_scopes([YOUTUBE_UPLOAD_SCOPE]):
-        raise RuntimeError("The token does not grant the required youtube.upload scope")
+    if not credentials.has_scopes(YOUTUBE_SCOPES):
+        raise RuntimeError("The token does not grant the required upload and video-management scopes")
     print("YouTube upload authorization is valid.")
-    print("Granted scope: https://www.googleapis.com/auth/youtube.upload")
+    print("Granted scopes: " + ", ".join(YOUTUBE_SCOPES))
     print("Uploads will go to the YouTube channel selected during Google consent.")
-    print("Channel metadata is intentionally not read because this token uses the least-privilege upload-only scope.")
+    print("The token can upload videos and manage metadata for videos on the selected channel.")
     return 0
 
 
@@ -225,40 +236,19 @@ def _primary_scene_names(manifest: dict) -> dict[str, str]:
     return result
 
 
-def _metadata(manifest: dict) -> tuple[str, str, list[str]]:
+def _metadata(manifest: dict, *, title_index: int = 0) -> tuple[str, str, list[str]]:
     objects = _primary_scene_names(manifest)
-    signature = str(manifest.get("plan_signature", "0"))
-    seed = int((signature or "0")[:12], 16)
-    templates = (
-        "A for {a} to Z for {z} | ABC Phonics Repeat-Along for Kids",
-        "Learn ABC A–Z | {a}, {m} and {z} Phonics Words for Children",
-        "ABC Phonics Lesson | Teacher and Child Repeat A for {a}",
-        "A–Z Alphabet Learning | Say and Repeat {a}, {b}, {z}",
-        "English ABC for Kids | A for {a} to Z for {z}",
-        "Alphabet Sounds and Words | A–Z Preschool Repeat-Along",
-        "A for {a}, B for {b} | Complete ABC Learning Video",
-        "Learn Letters A to Z | Colorful Phonics Words for Preschool",
-        "ABC Repeat After Me | A for {a}, M for {m}, Z for {z}",
-        "Phonics A–Z for Toddlers | Listen, Look and Repeat",
-        "Capital and Small Letters A–Z | ABC Words for Kids",
-        "Complete Alphabet Lesson | A for {a} and Z for {z}",
-    )
-    values = {
-        "a": objects.get("A", "Apple"),
-        "b": objects.get("B", "Ball"),
-        "m": objects.get("M", "Mango"),
-        "z": objects.get("Z", "Zebra"),
-    }
-    title = templates[seed % len(templates)].format(**values)[:100].strip()
+    title = APPROVED_VIDEO_TITLES[title_index % len(APPROVED_VIDEO_TITLES)]
     sample_letters = ("A", "B", "F", "M", "S", "Z")
     examples = ", ".join(f"{letter} for {objects[letter]}" for letter in sample_letters if letter in objects)
     description = (
-        "A complete A–Z phonics lesson using original teacher and child voice recordings. "
-        "Children can look, listen, and repeat each alphabet word.\n\n"
-        f"Examples in this lesson: {examples}.\n\n"
-        "Each lesson is newly assembled with a different educational route, visual composition, "
-        "background, music selection, and exact-object example footage.\n\n"
-        "Made for toddlers, preschool, nursery, kindergarten, and early English learners.\n\n"
+        "Learn the English alphabet from A to Z with original teacher and child voice recordings. "
+        "Children can listen, look, and say each letter and word aloud.\n\n"
+        f"Words featured in this lesson include: {examples}.\n\n"
+        "This colorful phonics lesson uses animated letters, object pictures, and carefully matched "
+        "real-world example footage to support early vocabulary and pronunciation.\n\n"
+        "Suitable for toddlers, preschool, nursery, kindergarten, and early English learners. "
+        "New A–Z alphabet lessons are published every day.\n\n"
         "#ABCSong #PhonicsSong #AlphabetForKids #PreschoolLearning #LearnABC"
     )
     tags = [
@@ -543,7 +533,7 @@ def upload(
     if thumbnail_path and not thumbnail_path.is_absolute():
         thumbnail_path = root / thumbnail_path
 
-    title, description, tags = _metadata(manifest)
+    title, description, tags = _metadata(manifest, title_index=len(history))
     youtube = _service(token_path)
     api_privacy_status = privacy_status
     status_body: dict[str, object] = {"privacyStatus": privacy_status, "selfDeclaredMadeForKids": True}
