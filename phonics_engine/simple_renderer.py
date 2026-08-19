@@ -44,6 +44,12 @@ class SimpleVideoAssembler:
             Path(r"C:\Windows\Fonts\impact.ttf"),
             Path(r"C:\Windows\Fonts\calibrib.ttf"),
             Path(r"C:\Windows\Fonts\arialbd.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/liberation2/LiberationSerif-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/liberation2/LiberationMono-Bold.ttf"),
         ))
         available = [path for path in choices if path.is_file()]
         return available[variant % len(available)] if available else None
