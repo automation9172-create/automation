@@ -8,6 +8,7 @@ import os
 import random
 import socket
 import ssl
+import tempfile
 import time
 from datetime import datetime, time as datetime_time, timezone
 from pathlib import Path
@@ -19,6 +20,8 @@ RETRIABLE_HTTP_STATUSES = {408, 429, 500, 502, 503, 504}
 MAX_RETRIES = 10
 UPLOAD_SOCKET_TIMEOUT_SECONDS = 180
 UPLOAD_CHUNK_MIB = 2
+YOUTUBE_THUMBNAIL_MAX_BYTES = 2 * 1024 * 1024
+YOUTUBE_THUMBNAIL_TARGET_BYTES = 1_900_000
 PUBLISH_SLOTS = {
     "morning": datetime_time(hour=8, minute=17),
     "afternoon": datetime_time(hour=14, minute=47),
@@ -94,6 +97,41 @@ def _google_modules():
     except ImportError as exc:
         raise RuntimeError("Install requirements.txt before using YouTube upload automation") from exc
     return Request, Credentials, InstalledAppFlow, build, HttpError, MediaFileUpload
+
+
+def _prepare_thumbnail_for_upload(thumbnail_path: Path, temporary_directory: Path) -> Path:
+    """Return a YouTube-safe thumbnail without modifying the selected source asset."""
+    if thumbnail_path.stat().st_size <= YOUTUBE_THUMBNAIL_MAX_BYTES:
+        return thumbnail_path
+
+    try:
+        from PIL import Image, ImageOps
+    except ImportError as exc:
+        raise RuntimeError("Install Pillow from requirements.txt to compress oversized thumbnails") from exc
+
+    temporary_directory.mkdir(parents=True, exist_ok=True)
+    output = temporary_directory / "youtube_thumbnail.jpg"
+    with Image.open(thumbnail_path) as source:
+        image = ImageOps.exif_transpose(source)
+        image.thumbnail((1920, 1080), Image.Resampling.LANCZOS)
+        rgba = image.convert("RGBA")
+        flattened = Image.new("RGB", rgba.size, "white")
+        flattened.paste(rgba, mask=rgba.getchannel("A"))
+
+        for quality in (92, 88, 84, 80, 75, 70, 65, 60):
+            flattened.save(output, "JPEG", quality=quality, optimize=True, progressive=True)
+            if output.stat().st_size <= YOUTUBE_THUMBNAIL_TARGET_BYTES:
+                print(
+                    f"Compressed oversized thumbnail from {thumbnail_path.stat().st_size} "
+                    f"to {output.stat().st_size} bytes for YouTube.",
+                    flush=True,
+                )
+                return output
+
+    raise RuntimeError(
+        f"Could not compress thumbnail below YouTube's {YOUTUBE_THUMBNAIL_MAX_BYTES}-byte limit: "
+        f"{thumbnail_path}"
+    )
 
 
 def authorize(client_secrets: Path, token_output: Path) -> int:
@@ -555,14 +593,22 @@ def upload(
     }
     _record_upload(root, receipt)
     if thumbnail_path and thumbnail_path.is_file():
-        thumbnail_media = MediaFileUpload(str(thumbnail_path), resumable=False)
-        try:
-            _execute_with_retry(
-                lambda: youtube.thumbnails().set(videoId=video_id, media_body=thumbnail_media).execute(),
-                label="Thumbnail upload",
-            )
-        except Exception as exc:
-            print(f"Warning: video uploaded, but thumbnail upload failed: {exc}")
+        with tempfile.TemporaryDirectory(prefix="phonics_youtube_thumbnail_") as temporary:
+            thumbnail_media = None
+            try:
+                upload_thumbnail = _prepare_thumbnail_for_upload(thumbnail_path, Path(temporary))
+                thumbnail_media = MediaFileUpload(str(upload_thumbnail), resumable=False)
+                _execute_with_retry(
+                    lambda: youtube.thumbnails().set(videoId=video_id, media_body=thumbnail_media).execute(),
+                    label="Thumbnail upload",
+                )
+                print(f"Thumbnail uploaded successfully for video {video_id}.", flush=True)
+            except Exception as exc:
+                print(f"Warning: video uploaded, but thumbnail upload failed: {exc}")
+            finally:
+                media_handle = getattr(thumbnail_media, "_fd", None)
+                if media_handle is not None:
+                    media_handle.close()
     if api_publish_at:
         print(f"Uploaded successfully and scheduled for {api_publish_at}: https://youtu.be/{video_id}")
     else:

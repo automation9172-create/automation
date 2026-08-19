@@ -4,11 +4,14 @@ import json
 from datetime import datetime, timezone
 
 import pytest
+from PIL import Image
 
 from phonics_engine.youtube_upload import (
+    YOUTUBE_THUMBNAIL_MAX_BYTES,
     YOUTUBE_UPLOAD_SCOPE,
     _metadata,
     _normalise_publish_at,
+    _prepare_thumbnail_for_upload,
     _read_upload_history,
     _record_upload,
     scheduled_slot,
@@ -80,3 +83,18 @@ def test_upload_receipt_rejects_two_videos_for_one_scheduled_slot(tmp_path) -> N
     _record_upload(tmp_path, second)
 
     assert _read_upload_history(tmp_path) == [first]
+
+
+def test_oversized_thumbnail_is_compressed_without_changing_source(tmp_path) -> None:
+    source = tmp_path / "large.png"
+    image = Image.effect_noise((2400, 1350), 100).convert("RGB")
+    image.save(source, "PNG")
+    original_size = source.stat().st_size
+    assert original_size > YOUTUBE_THUMBNAIL_MAX_BYTES
+
+    prepared = _prepare_thumbnail_for_upload(source, tmp_path / "prepared")
+
+    assert prepared != source
+    assert prepared.suffix == ".jpg"
+    assert prepared.stat().st_size < YOUTUBE_THUMBNAIL_MAX_BYTES
+    assert source.stat().st_size == original_size
