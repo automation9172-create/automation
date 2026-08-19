@@ -46,7 +46,7 @@ jobs:
       YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
       YOUTUBE_CHANNEL_KEY: ${{ vars.YOUTUBE_CHANNEL_KEY || 'youtube_primary' }}
-      PRODUCTION_START_DATE: ${{ vars.PRODUCTION_START_DATE || '2026-08-18' }}
+      PRODUCTION_START_DATE: ${{ vars.PRODUCTION_START_DATE || '2026-08-20' }}
 
     steps:
       - name: Check out engine and media library

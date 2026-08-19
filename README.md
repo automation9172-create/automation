@@ -142,7 +142,7 @@ Create these repository secrets:
 Create these optional repository variables:
 
 - `PRODUCTION_START_DATE` — optional scheduled-production override; use an India
-  calendar date such as `2026-08-18`. This repository defaults to that date,
+  calendar date such as `2026-08-20`. This repository defaults to that date,
   and the variable lets you postpone scheduled production without editing code.
 - `YOUTUBE_CATEGORY_ID` — `27` for Education (default).
 - `YOUTUBE_CHANNEL_KEY` — a stable history label such as
