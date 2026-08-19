@@ -8,13 +8,19 @@ on:
       timezone: "Asia/Kolkata"
     - cron: "17 5 * * *"
       timezone: "Asia/Kolkata"
+    - cron: "17 6 * * *"
+      timezone: "Asia/Kolkata"
     - cron: "47 10 * * *"
       timezone: "Asia/Kolkata"
     - cron: "47 11 * * *"
       timezone: "Asia/Kolkata"
+    - cron: "47 12 * * *"
+      timezone: "Asia/Kolkata"
     - cron: "38 15 * * *"
       timezone: "Asia/Kolkata"
     - cron: "38 16 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "38 17 * * *"
       timezone: "Asia/Kolkata"
   workflow_dispatch:
     inputs:
@@ -77,9 +83,9 @@ jobs:
               exit 0
             fi
             case "${{ github.event.schedule }}" in
-              "17 4 * * *"|"17 5 * * *") SLOT_NAME="morning" ;;
-              "47 10 * * *"|"47 11 * * *") SLOT_NAME="afternoon" ;;
-              "38 15 * * *"|"38 16 * * *") SLOT_NAME="evening" ;;
+              "17 4 * * *"|"17 5 * * *"|"17 6 * * *") SLOT_NAME="morning" ;;
+              "47 10 * * *"|"47 11 * * *"|"47 12 * * *") SLOT_NAME="afternoon" ;;
+              "38 15 * * *"|"38 16 * * *"|"38 17 * * *") SLOT_NAME="evening" ;;
               *) echo "Unknown schedule trigger"; exit 1 ;;
             esac
             python -m phonics_engine.youtube_upload slot --project-root . --name "$SLOT_NAME" >> "$GITHUB_OUTPUT"
@@ -158,6 +164,11 @@ jobs:
           test -n "$PIXABAY_API_KEY" || { echo "Missing PIXABAY_API_KEY"; exit 1; }
           test -n "$PEXELS_API_KEY" || { echo "Missing PEXELS_API_KEY"; exit 1; }
           test -n "$YOUTUBE_TOKEN_JSON" || { echo "Missing YOUTUBE_TOKEN_JSON"; exit 1; }
+
+      - name: Verify unattended YouTube authorization before rendering
+        if: steps.slot.outputs.needed == 'true'
+        timeout-minutes: 2
+        run: python -m phonics_engine.youtube_upload check-auth
 
       - name: Test and validate asset inventory
         if: steps.slot.outputs.needed == 'true'

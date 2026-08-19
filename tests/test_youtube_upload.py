@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -79,6 +80,20 @@ def test_scheduled_slots_are_exact_india_times_in_utc() -> None:
     assert scheduled_slot("afternoon", now=now) == "2026-08-11T09:17:00Z"
     assert scheduled_slot("evening", now=now) == "2026-08-11T14:08:00Z"
     assert _normalise_publish_at("2026-08-11T08:17:00+05:30") == "2026-08-11T02:47:00Z"
+
+
+def test_github_workflow_has_three_attempts_for_each_publication_slot() -> None:
+    workflow = Path(".github/workflows/generate-and-upload.yml").read_text(encoding="utf-8")
+    expected_crons = (
+        "17 4 * * *", "17 5 * * *", "17 6 * * *",
+        "47 10 * * *", "47 11 * * *", "47 12 * * *",
+        "38 15 * * *", "38 16 * * *", "38 17 * * *",
+    )
+
+    for cron in expected_crons:
+        assert f'- cron: "{cron}"' in workflow
+    assert workflow.count('timezone: "Asia/Kolkata"') == 9
+    assert "Verify unattended YouTube authorization before rendering" in workflow
 
 
 def test_upload_receipt_rejects_two_videos_for_one_scheduled_slot(tmp_path) -> None:
