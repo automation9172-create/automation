@@ -53,6 +53,18 @@ def test_upload_titles_rotate_deterministically_through_only_approved_titles() -
     assert selected[6:] == list(APPROVED_VIDEO_TITLES)
 
 
+def test_specific_approved_title_is_replaced_when_its_object_does_not_match() -> None:
+    manifest = {
+        "scenes": [
+            {"letter": "B", "object": "Butterfly"},
+            {"letter": "Z", "object": "Zinnia"},
+        ]
+    }
+
+    assert _metadata(manifest, title_index=1)[0] == APPROVED_VIDEO_TITLES[2]
+    assert _metadata(manifest, title_index=5)[0] == APPROVED_VIDEO_TITLES[3]
+
+
 def test_upload_receipt_is_mirrored_and_idempotent(tmp_path) -> None:
     receipt = {"plan_signature": "abc123", "video_id": "video123"}
     _record_upload(tmp_path, receipt)

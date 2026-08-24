@@ -24,6 +24,11 @@ UPLOAD_SOCKET_TIMEOUT_SECONDS = 180
 UPLOAD_CHUNK_MIB = 2
 YOUTUBE_THUMBNAIL_MAX_BYTES = 2 * 1024 * 1024
 YOUTUBE_THUMBNAIL_TARGET_BYTES = 1_900_000
+SERIES_PLAYLIST_TITLE = "ABC Phonics A-Z | Learn Letters and Sounds"
+SERIES_PLAYLIST_DESCRIPTION = (
+    "Colorful A-Z alphabet and phonics lessons with teacher-and-child repeat-along voices, "
+    "animated letters, object words, and matching real-world examples for toddlers and preschoolers."
+)
 APPROVED_VIDEO_TITLES = (
     "Phonics Song with Two Words – A for Apple – ABC Alphabet Sounds for Children",
     "A for Apple, B for Ball | Complete ABC Repeat-Along Lesson",
@@ -238,7 +243,14 @@ def _primary_scene_names(manifest: dict) -> dict[str, str]:
 
 def _metadata(manifest: dict, *, title_index: int = 0) -> tuple[str, str, list[str]]:
     objects = _primary_scene_names(manifest)
-    title = APPROVED_VIDEO_TITLES[title_index % len(APPROVED_VIDEO_TITLES)]
+    selected_title = title_index % len(APPROVED_VIDEO_TITLES)
+    # Keep the user's exact approved title bank, but never claim an object
+    # that is different from the completed lesson plan.
+    if selected_title == 1 and "B" in objects and objects["B"].casefold() != "ball":
+        selected_title = 2
+    if selected_title == 5 and "Z" in objects and objects["Z"].casefold() != "zebra":
+        selected_title = 3
+    title = APPROVED_VIDEO_TITLES[selected_title]
     sample_letters = ("A", "B", "F", "M", "S", "Z")
     examples = ", ".join(f"{letter} for {objects[letter]}" for letter in sample_letters if letter in objects)
     description = (
@@ -256,6 +268,70 @@ def _metadata(manifest: dict, *, title_index: int = 0) -> tuple[str, str, list[s
         "learn abc", "kindergarten", "nursery rhymes", "teacher and student voice", "a to z",
     ]
     return title, description, tags
+
+
+def _series_playlist(youtube) -> str:
+    """Return the public series playlist, creating it once when necessary."""
+
+    page_token = None
+    while True:
+        response = _execute_with_retry(
+            lambda token=page_token: youtube.playlists().list(
+                part="id,snippet,status", mine=True, maxResults=50, pageToken=token
+            ).execute(),
+            label="Playlist lookup",
+        )
+        for playlist in response.get("items", []):
+            if playlist.get("snippet", {}).get("title") == SERIES_PLAYLIST_TITLE:
+                return str(playlist["id"])
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+    created = _execute_with_retry(
+        lambda: youtube.playlists().insert(
+            part="snippet,status",
+            body={
+                "snippet": {
+                    "title": SERIES_PLAYLIST_TITLE,
+                    "description": SERIES_PLAYLIST_DESCRIPTION,
+                    "defaultLanguage": "en",
+                },
+                "status": {"privacyStatus": "public"},
+            },
+        ).execute(),
+        label="Playlist creation",
+    )
+    return str(created["id"])
+
+
+def _add_video_to_series_playlist(youtube, video_id: str) -> str:
+    playlist_id = _series_playlist(youtube)
+    page_token = None
+    while True:
+        response = _execute_with_retry(
+            lambda token=page_token: youtube.playlistItems().list(
+                part="contentDetails", playlistId=playlist_id, maxResults=50, pageToken=token
+            ).execute(),
+            label="Playlist membership check",
+        )
+        if any(item.get("contentDetails", {}).get("videoId") == video_id for item in response.get("items", [])):
+            return playlist_id
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+    _execute_with_retry(
+        lambda: youtube.playlistItems().insert(
+            part="snippet",
+            body={
+                "snippet": {
+                    "playlistId": playlist_id,
+                    "resourceId": {"kind": "youtube#video", "videoId": video_id},
+                }
+            },
+        ).execute(),
+        label="Playlist addition",
+    )
+    return playlist_id
 
 
 def _history_paths(root: Path) -> tuple[Path, Path]:
@@ -536,7 +612,12 @@ def upload(
     title, description, tags = _metadata(manifest, title_index=len(history))
     youtube = _service(token_path)
     api_privacy_status = privacy_status
-    status_body: dict[str, object] = {"privacyStatus": privacy_status, "selfDeclaredMadeForKids": True}
+    status_body: dict[str, object] = {
+        "privacyStatus": privacy_status,
+        "selfDeclaredMadeForKids": True,
+        "embeddable": True,
+        "publicStatsViewable": True,
+    }
     api_publish_at = scheduled_publish_at
     if api_publish_at:
         if privacy_status != "public":
@@ -550,7 +631,14 @@ def upload(
             status_body["privacyStatus"] = "private"
             status_body["publishAt"] = api_publish_at
     body = {
-        "snippet": {"title": title, "description": description, "tags": tags, "categoryId": str(category_id)},
+        "snippet": {
+            "title": title,
+            "description": description,
+            "tags": tags,
+            "categoryId": str(category_id),
+            "defaultLanguage": "en",
+            "defaultAudioLanguage": "en",
+        },
         "status": status_body,
     }
     chunk_mib = int(os.environ.get("YOUTUBE_UPLOAD_CHUNK_MIB", UPLOAD_CHUNK_MIB))
@@ -599,6 +687,13 @@ def upload(
                 media_handle = getattr(thumbnail_media, "_fd", None)
                 if media_handle is not None:
                     media_handle.close()
+    try:
+        playlist_id = _add_video_to_series_playlist(youtube, video_id)
+        print(f"Added video to public A-Z series playlist {playlist_id}.", flush=True)
+    except Exception as exc:
+        # The video is already safely uploaded and recorded. A transient
+        # playlist failure must not cause a duplicate-video recovery attempt.
+        print(f"Warning: video uploaded, but series-playlist addition failed: {exc}", flush=True)
     if api_publish_at:
         print(f"Uploaded successfully and scheduled for {api_publish_at}: https://youtu.be/{video_id}")
     else:
