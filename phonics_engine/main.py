@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import random
+import shutil
 import sys
 from dataclasses import replace
 from datetime import datetime
@@ -18,7 +19,6 @@ from .media import FFmpeg, MediaError
 from .pixabay import PixabayVideoCache
 from .planner import TimelinePlanner
 from .renderer import VideoAssembler
-from .thumbnail import compose_discovery_thumbnail
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -182,9 +182,11 @@ def run(arguments: argparse.Namespace) -> int:
     result = renderer.render(plan, pixabay)
     thumbnail_output = None
     if plan.thumbnail_path:
-        thumbnail_output = result.output_path.with_name(result.output_path.stem + "_thumbnail.jpg")
-        compose_discovery_thumbnail(plan, thumbnail_output, plan_signature, root)
-        logger.info("Composed distinct plan-matched thumbnail: %s", thumbnail_output)
+        thumbnail_output = result.output_path.with_name(
+            result.output_path.stem + "_thumbnail" + plan.thumbnail_path.suffix.casefold()
+        )
+        shutil.copy2(plan.thumbnail_path, thumbnail_output)
+        logger.info("Copied selected thumbnail directly from thumbnail inventory: %s", plan.thumbnail_path)
     history.record(
         plan,
         arguments.channel.strip() or "channel_1",
