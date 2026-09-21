@@ -1,4 +1,6 @@
 .env
+shorts_outputs/
+.shorts_work/
 .env.*
 !.env.example
 .history/
