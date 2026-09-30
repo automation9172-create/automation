@@ -67,64 +67,85 @@ def plan_batch(assets: list[Asset], history_path, count: int = 5, on_date: date 
                 title = (
                     f"{chosen[0].letter.upper()} for {chosen[0].name} | "
                     f"{chosen[1].letter.upper()} for {chosen[1].name} | "
-                    f"ABC Phonics Song | Kids Learning #Shorts"
+                    f"abcd | phonics song"
                 )
                 desc = (
                     f"{chosen[0].letter.upper()} for {chosen[0].name} | "
                     f"{chosen[1].letter.upper()} for {chosen[1].name} | "
-                    f"{chosen[2].letter.upper()} for {chosen[2].name}\n"
+                    f"{chosen[2].letter.upper()} for {chosen[2].name} | "
+                    f"{chosen[3].letter.upper()} for {chosen[3].name}\n\n"
                     "Watch, sing, and say it aloud! Perfect for toddlers and preschoolers.\n\n"
                     "#Shorts #ABCSong #PhonicsForKids #LearnABC #KidsEducation #AlphabetSong "
                     "#KidsSong #MadeForKids #Preschool #Toddlers #PhonicsLesson #ABCKids "
-                    "#ChildrenSong #EnglishAlphabet #KindergartenLearning"
+                    "#ChildrenSong #EnglishAlphabet #KindergartenLearning #abcd #phonicssong"
                 )
             elif theme == "count":
                 pool = _pool(assets, THEME_POOLS["fruits"])
                 chosen = rng.sample(pool, min(4, len(pool)))
-                title = f"1 2 3 4 {chosen[0].name.title()}s! | Kids Counting Song | Learn Numbers #Shorts"
+                title = (
+                    f"1 for {chosen[0].name} | 2 for {chosen[1].name} | "
+                    f"counting song | kids learning"
+                )
                 desc = (
-                    f"Count with {chosen[0].name}, {chosen[1].name}, {chosen[2].name} and more!\n"
+                    f"1 for {chosen[0].name} | 2 for {chosen[1].name} | "
+                    f"3 for {chosen[2].name} | 4 for {chosen[3].name}\n\n"
                     "Fun counting practice for kids and toddlers.\n\n"
                     "#Shorts #CountingSong #KidsLearning #NumbersForKids #MadeForKids "
-                    "#Preschool #Toddlers #KidsEducation #LearnNumbers #123Kids"
+                    "#Preschool #Toddlers #KidsEducation #LearnNumbers #123Kids #counting"
                 )
             elif theme == "vehicles":
                 pool = _pool(assets, THEME_POOLS["vehicles"])
                 chosen = rng.sample(pool, min(4, len(pool)))
-                title = f"{chosen[0].name} | {chosen[1].name} | Vehicle Song for Kids | Sing Along #Shorts"
+                title = (
+                    f"{chosen[0].name} | {chosen[1].name} | "
+                    f"vehicles song | kids phonics"
+                )
                 desc = (
-                    f"Learn about {chosen[0].name}, {chosen[1].name} and more!\n"
-                    "Sing along and have fun with vehicles!\n\n"
+                    f"{chosen[0].name} | {chosen[1].name} | "
+                    f"{chosen[2].name} | {chosen[3].name}\n\n"
+                    "Sing along and learn about vehicles!\n\n"
                     "#Shorts #VehicleSong #KidsLearning #MadeForKids #Preschool "
-                    "#Toddlers #KidsEducation #CarSong #VehiclesForKids"
+                    "#Toddlers #KidsEducation #CarSong #VehiclesForKids #phonicssong"
                 )
             elif theme == "animals":
                 pool = _pool(assets, THEME_POOLS["animals"])
                 chosen = rng.sample(pool, min(4, len(pool)))
-                title = f"{chosen[0].name} | {chosen[1].name} | Animal Song for Kids | Guess the Animal #Shorts"
+                title = (
+                    f"{chosen[0].name} | {chosen[1].name} | "
+                    f"animal sounds | kids phonics song"
+                )
                 desc = (
-                    f"Can you guess the animal? {chosen[0].name}, {chosen[1].name} and more!\n"
-                    "Fun animal learning for kids and toddlers.\n\n"
+                    f"{chosen[0].name} | {chosen[1].name} | "
+                    f"{chosen[2].name} | {chosen[3].name}\n\n"
+                    "Learn animal names and sounds!\n\n"
                     "#Shorts #AnimalSong #KidsLearning #MadeForKids #Preschool "
-                    "#Toddlers #KidsEducation #AnimalsForKids #GuessTheAnimal"
+                    "#Toddlers #KidsEducation #AnimalsForKids #animalsounds #phonicssong"
                 )
             elif theme == "colors":
                 chosen = rng.sample(assets, min(4, len(assets)))
-                title = f"Learn Colors with {chosen[0].name} | Color Song for Kids #Shorts"
+                title = (
+                    f"{chosen[0].name} | {chosen[1].name} | "
+                    f"learn colors | kids song"
+                )
                 desc = (
-                    f"Learn colors with {chosen[0].name}, {chosen[1].name} and more!\n"
-                    "Colorful fun for toddlers and preschoolers.\n\n"
+                    f"{chosen[0].name} | {chosen[1].name} | "
+                    f"{chosen[2].name} | {chosen[3].name}\n\n"
+                    "Learn colors with fun!\n\n"
                     "#Shorts #ColorSong #KidsLearning #MadeForKids #Preschool "
-                    "#Toddlers #KidsEducation #LearnColors #ColorsForKids"
+                    "#Toddlers #KidsEducation #LearnColors #ColorsForKids #kidssong"
                 )
             else:
                 chosen = rng.sample(assets, min(4, len(assets)))
-                title = f"Can You Say {chosen[0].name}? | Kids Phonics Quiz | Guess It! #Shorts"
+                title = (
+                    f"{chosen[0].name} | {chosen[1].name} | "
+                    f"phonics quiz | kids learning"
+                )
                 desc = (
-                    f"Say {chosen[0].name}, {chosen[1].name} and more aloud!\n"
-                    "Fun phonics quiz for toddlers and preschoolers.\n\n"
+                    f"{chosen[0].name} | {chosen[1].name} | "
+                    f"{chosen[2].name} | {chosen[3].name}\n\n"
+                    "Say each word aloud and learn!\n\n"
                     "#Shorts #PhonicsQuiz #KidsLearning #MadeForKids #Preschool "
-                    "#Toddlers #KidsEducation #PhonicsForKids #KidsQuiz"
+                    "#Toddlers #KidsEducation #PhonicsForKids #KidsQuiz #phonicssong"
                 )
             signature = _signature(theme, chosen, style)
             if signature in known or any(plan.signature == signature for plan in result):
