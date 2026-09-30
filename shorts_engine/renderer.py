@@ -38,6 +38,22 @@ def _choose_file(folder: Path, index: int, suffixes: set[str]) -> Path | None:
     return files[index % len(files)] if files else None
 
 
+def _choose_valid_music(music_dir: Path, letter_index: int) -> Path | None:
+    suffixes = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
+    files = sorted(p for p in music_dir.iterdir() if p.is_file() and p.suffix.lower() in suffixes) if music_dir.exists() else []
+    if not files:
+        return None
+    for offset in range(len(files)):
+        candidate = files[(letter_index + offset) % len(files)]
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-i", str(candidate)],
+            check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5,
+        )
+        if probe.returncode == 0:
+            return candidate
+    return None
+
+
 _ACCENT_COLORS = ["FFD700", "FF6B35", "7BC67E", "4FC3F7", "FF8A80", "CE93D8"]
 
 
@@ -45,9 +61,9 @@ def _scene(project_root: Path, asset: Asset, title: str, subtitle: str, output: 
     background_dir = project_root / "assets" / "backrounds"
     music_dir = project_root / "assets" / "back_musics"
     background = _choose_file(background_dir, style_index * 11 + scene_index * 7, {".png", ".jpg", ".jpeg", ".webp"})
-    # Each letter gets its own consistent background music track
+    # Each letter gets its own consistent background music track; skip corrupt files automatically
     letter_index = ord(asset.letter.lower()) - ord('a') if asset.letter else 0
-    music = _choose_file(music_dir, letter_index, {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"})
+    music = _choose_valid_music(music_dir, letter_index)
     if background is None or music is None or asset.teacher_voice is None:
         raise RuntimeError(f"Missing background/music/teacher voice for {asset.name}")
     student = asset.student_voice or asset.teacher_voice
@@ -58,17 +74,15 @@ def _scene(project_root: Path, asset: Asset, title: str, subtitle: str, output: 
     font = _font()
     accent = _ACCENT_COLORS[letter_index % len(_ACCENT_COLORS)]
     letter_text = _quote(asset.letter.upper())
-    sub_upper = subtitle.upper()
-    sub_fontsize = 95 if len(sub_upper) <= 10 else (78 if len(sub_upper) <= 16 else 60)
-    sub_text = _quote(sub_upper)
     vf = (
-        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=3:1[bg];"
-        "[1:v]format=rgba,scale=820:820:force_original_aspect_ratio=decrease[fg];"
-        f"[bg][fg]overlay=x=130+12*sin(2*PI*t/{length:.3f}):y=270+8*cos(2*PI*t/{length:.3f})[base];"
-        "[base]drawbox=x=0:y=0:w=1080:h=250:color=0x000000BB:t=fill,"
-        f"drawtext=fontfile='{font}':text='{letter_text}':fontcolor=0x{accent}:fontsize=180:x=(w-text_w)/2:y=28:shadowcolor=black:shadowx=6:shadowy=6,"
-        "drawbox=x=0:y=1120:w=1080:h=280:color=0x000000CC:t=fill,"
-        f"drawtext=fontfile='{font}':text='{sub_text}':fontcolor=white:fontsize={sub_fontsize}:x=(w-text_w)/2:y=1145:shadowcolor=0x{accent}:shadowx=4:shadowy=4[v];"
+        # Clean vivid background — no blur
+        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg];"
+        # Large PNG fills lower portion of screen
+        "[1:v]format=rgba,scale=1000:1000:force_original_aspect_ratio=decrease[fg];"
+        # Fast independent x/y bounce periods (1.2s and 1.5s) for lively animation
+        "[bg][fg]overlay=x=40+18*sin(2*PI*t/1.2):y=700+14*cos(2*PI*t/1.5)[base];"
+        # Huge letter at top ONLY — bright accent + thick white outline, NO bottom text
+        f"[base]drawtext=fontfile='{font}':text='{letter_text}':fontcolor=0x{accent}:fontsize=900:x=(w-text_w)/2:y=25:borderw=22:bordercolor=white[v];"
         f"[2:a]aresample=48000,atrim=duration={teacher_duration:.3f},asetpts=PTS-STARTPTS,aecho=0.8:0.9:60:0.40,volume=1.25,afade=t=out:st={max(0.0, teacher_duration-0.20):.3f}:d=0.20[teacher];"
         f"[3:a]aresample=48000,atrim=duration={student_duration:.3f},asetpts=PTS-STARTPTS,aecho=0.8:0.9:60:0.40,volume=1.25,adelay={round(student_start * 1000)}:all=1[student];"
         f"[4:a]aresample=48000,volume=0.22,atrim=duration={length:.3f},asetpts=PTS-STARTPTS[music];"
@@ -82,6 +96,34 @@ def _scene(project_root: Path, asset: Asset, title: str, subtitle: str, output: 
         "-filter_complex", vf, "-map", "[v]", "-map", "[a]", "-t", f"{length:.3f}", "-r", "30", "-s", "1080x1920",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(output),
     ])
+
+
+def render_thumbnail(project_root: Path, plan: ShortPlan, output_dir: Path) -> Path:
+    asset = plan.assets[0]
+    background_dir = project_root / "assets" / "backrounds"
+    background = _choose_file(background_dir, plan.style_index * 11, {".png", ".jpg", ".jpeg", ".webp"})
+    if background is None or not asset.image.exists():
+        raise RuntimeError(f"Missing background or image for thumbnail: {asset.name}")
+    font = _font()
+    letter_index = ord(asset.letter.lower()) - ord('a') if asset.letter else 0
+    accent = _ACCENT_COLORS[letter_index % len(_ACCENT_COLORS)]
+    letter_text = _quote(asset.letter.upper())
+    thumb = output_dir / "thumbnail.jpg"
+    vf = (
+        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg];"
+        "[1:v]format=rgba,scale=1000:1000:force_original_aspect_ratio=decrease[fg];"
+        "[bg][fg]overlay=x=40:y=700[base];"
+        f"[base]drawtext=fontfile='{font}':text='{letter_text}':fontcolor=0x{accent}:fontsize=900:x=(w-text_w)/2:y=25:borderw=22:bordercolor=white[v]"
+    )
+    _run([
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-loop", "1", "-framerate", "1", "-i", str(background),
+        "-loop", "1", "-i", str(asset.image),
+        "-filter_complex", vf,
+        "-map", "[v]", "-vframes", "1", "-s", "1080x1920",
+        "-q:v", "2", str(thumb),
+    ])
+    return thumb
 
 
 def render_plan(project_root: Path, plan: ShortPlan, output: Path, keep_temporary: bool = False) -> dict:
@@ -107,7 +149,8 @@ def render_plan(project_root: Path, plan: ShortPlan, output: Path, keep_temporar
     concat = workdir / "concat.txt"
     concat.write_text("".join(f"file '{scene.as_posix()}'\n" for scene in scenes), encoding="utf-8")
     _run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(concat), "-c", "copy", "-movflags", "+faststart", str(output)])
-    manifest = {"signature": plan.signature, "title": plan.title, "theme": plan.theme, "output": str(output), "assets": [asset.name for asset in plan.assets]}
+    thumbnail = render_thumbnail(project_root, plan, output.parent)
+    manifest = {"signature": plan.signature, "title": plan.title, "theme": plan.theme, "output": str(output), "thumbnail": str(thumbnail), "assets": [asset.name for asset in plan.assets]}
     output.with_suffix(".json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     if not keep_temporary:
         shutil.rmtree(workdir, ignore_errors=True)

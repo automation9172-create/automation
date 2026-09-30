@@ -61,11 +61,12 @@ def main() -> int:
             continue
         output = output_dir / f"short-{index:02d}.mp4"
         try:
-            render_plan(root, plan, output, keep_temporary=args.keep_temporary_files)
+            manifest = render_plan(root, plan, output, keep_temporary=args.keep_temporary_files)
+            thumbnail = Path(manifest["thumbnail"]) if manifest.get("thumbnail") else None
             receipt = {"signature": plan.signature, "date": run_date.isoformat(), "title": plan.title, "file": str(output), "status": "rendered"}
             if args.upload:
                 from .youtube import upload
-                receipt["youtube_video_id"] = upload(output, plan.title, plan.description, args.privacy_status)
+                receipt["youtube_video_id"] = upload(output, plan.title, plan.description, args.privacy_status, thumbnail=thumbnail)
                 receipt["status"] = "uploaded"
                 record(plan_history, {"signature": plan.signature, "date": run_date.isoformat(), "title": plan.title, "theme": plan.theme})
                 uploaded_signatures.add(plan.signature)
