@@ -22,6 +22,7 @@ def main() -> int:
     parser.add_argument("--upload", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--keep-temporary-files", action="store_true")
+    parser.add_argument("--max-upload", type=int, default=None, help="Max shorts to upload this run (slot-based scheduling)")
     args = parser.parse_args()
     root = args.project_root.resolve()
     history_dir = root / ".shorts_work"
@@ -55,10 +56,14 @@ def main() -> int:
     uploaded_data = read_json(upload_history, {"shorts": []})
     uploaded_signatures = {item.get("signature") for item in uploaded_data.get("shorts", []) if item.get("status") == "uploaded"}
     failures: list[str] = []
+    uploads_this_run = 0
     for index, plan in enumerate(plans, start=1):
         if plan.signature in uploaded_signatures or state.get("status", {}).get(plan.signature, {}).get("status") == "uploaded":
             print(f"[{index}/{len(plans)}] already uploaded: {plan.title}")
             continue
+        if args.upload and args.max_upload is not None and uploads_this_run >= args.max_upload:
+            print(f"[slot limit: {args.max_upload} uploads done this run]")
+            break
         output = output_dir / f"short-{index:02d}.mp4"
         try:
             manifest = render_plan(root, plan, output, keep_temporary=args.keep_temporary_files)
@@ -70,6 +75,7 @@ def main() -> int:
                 receipt["status"] = "uploaded"
                 record(plan_history, {"signature": plan.signature, "date": run_date.isoformat(), "title": plan.title, "theme": plan.theme})
                 uploaded_signatures.add(plan.signature)
+                uploads_this_run += 1
             state.setdefault("status", {})[plan.signature] = {"status": receipt["status"], "youtube_video_id": receipt.get("youtube_video_id"), "file": str(output)}
             write_json(batch_path, state)
             record(upload_history, receipt)
