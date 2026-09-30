@@ -28,7 +28,7 @@ def _credentials() -> Credentials:
 
 def upload(video: Path, title: str, description: str, privacy_status: str = "public") -> str:
     youtube = build("youtube", "v3", credentials=_credentials(), cache_discovery=False)
-    body = {"snippet": {"title": title[:100], "description": description, "categoryId": "27", "tags": ["kids", "phonics", "education", "Shorts"]}, "status": {"privacyStatus": privacy_status, "selfDeclaredMadeForKids": True}}
+    body = {"snippet": {"title": title[:100], "description": description[:5000], "categoryId": "27", "tags": ["phonics", "abc song", "alphabet", "kids learning", "abcd", "phonics song", "learn abc", "kids education", "preschool", "kindergarten", "toddlers", "nursery rhyme", "kids phonics", "letter sounds", "educational", "Shorts", "youtube shorts", "kids shorts", "children", "baby songs", "abc kids", "english alphabet"]}, "status": {"privacyStatus": privacy_status, "selfDeclaredMadeForKids": True}}
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(str(video), mimetype="video/mp4", resumable=True, chunksize=4 * 1024 * 1024))
     for attempt in range(5):
         try:

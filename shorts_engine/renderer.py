@@ -38,11 +38,16 @@ def _choose_file(folder: Path, index: int, suffixes: set[str]) -> Path | None:
     return files[index % len(files)] if files else None
 
 
+_ACCENT_COLORS = ["FFD700", "FF6B35", "7BC67E", "4FC3F7", "FF8A80", "CE93D8"]
+
+
 def _scene(project_root: Path, asset: Asset, title: str, subtitle: str, output: Path, scene_index: int, style_index: int) -> None:
     background_dir = project_root / "assets" / "backrounds"
     music_dir = project_root / "assets" / "back_musics"
     background = _choose_file(background_dir, style_index * 11 + scene_index * 7, {".png", ".jpg", ".jpeg", ".webp"})
-    music = _choose_file(music_dir, style_index * 5 + scene_index, {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"})
+    # Each letter gets its own consistent background music track
+    letter_index = ord(asset.letter.lower()) - ord('a') if asset.letter else 0
+    music = _choose_file(music_dir, letter_index, {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"})
     if background is None or music is None or asset.teacher_voice is None:
         raise RuntimeError(f"Missing background/music/teacher voice for {asset.name}")
     student = asset.student_voice or asset.teacher_voice
@@ -50,20 +55,24 @@ def _scene(project_root: Path, asset: Asset, title: str, subtitle: str, output: 
     student_duration = _duration(student, 1.4)
     student_start = teacher_duration + 0.30
     length = min(8.0, max(4.8, student_start + student_duration + 0.25))
-    x = 160 + (scene_index % 2) * 40
     font = _font()
+    accent = _ACCENT_COLORS[letter_index % len(_ACCENT_COLORS)]
+    letter_text = _quote(asset.letter.upper())
+    sub_upper = subtitle.upper()
+    sub_fontsize = 95 if len(sub_upper) <= 10 else (78 if len(sub_upper) <= 16 else 60)
+    sub_text = _quote(sub_upper)
     vf = (
-        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=2:1[bg];"
-        "[1:v]format=rgba,scale=780:780:force_original_aspect_ratio=decrease[fg];"
-        f"[bg][fg]overlay=x={x}+18*sin(2*PI*t/{length:.3f}):y=445+12*cos(2*PI*t/{length:.3f})[base];"
-        "[base]drawbox=x=45:y=70:w=990:h=185:color=0x18233bEE:t=fill,"
-        f"drawtext=fontfile='{font}':text='{_quote(title)}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=115,"
-        "drawbox=x=90:y=1330:w=900:h=300:color=0xFFF4C4DD:t=fill,"
-        f"drawtext=fontfile='{font}':text='{_quote(subtitle)}':fontcolor=0x17213B:fontsize=58:x=(w-text_w)/2:y=1435[v];"
-        f"[2:a]aresample=48000,atrim=duration={teacher_duration:.3f},asetpts=PTS-STARTPTS,afade=t=out:st={max(0.0, teacher_duration-0.20):.3f}:d=0.20[teacher];"
-        f"[3:a]aresample=48000,atrim=duration={student_duration:.3f},asetpts=PTS-STARTPTS,adelay={round(student_start * 1000)}:all=1[student];"
-        f"[4:a]aresample=48000,volume=0.24,atrim=duration={length:.3f},asetpts=PTS-STARTPTS[music];"
-        f"[teacher][student]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,volume=0.82,apad,atrim=duration={length:.3f}[voicebus];"
+        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=3:1[bg];"
+        "[1:v]format=rgba,scale=820:820:force_original_aspect_ratio=decrease[fg];"
+        f"[bg][fg]overlay=x=130+12*sin(2*PI*t/{length:.3f}):y=270+8*cos(2*PI*t/{length:.3f})[base];"
+        "[base]drawbox=x=0:y=0:w=1080:h=250:color=0x000000BB:t=fill,"
+        f"drawtext=fontfile='{font}':text='{letter_text}':fontcolor=0x{accent}:fontsize=180:x=(w-text_w)/2:y=28:shadowcolor=black:shadowx=6:shadowy=6,"
+        "drawbox=x=0:y=1120:w=1080:h=280:color=0x000000CC:t=fill,"
+        f"drawtext=fontfile='{font}':text='{sub_text}':fontcolor=white:fontsize={sub_fontsize}:x=(w-text_w)/2:y=1145:shadowcolor=0x{accent}:shadowx=4:shadowy=4[v];"
+        f"[2:a]aresample=48000,atrim=duration={teacher_duration:.3f},asetpts=PTS-STARTPTS,aecho=0.8:0.9:60:0.40,volume=1.25,afade=t=out:st={max(0.0, teacher_duration-0.20):.3f}:d=0.20[teacher];"
+        f"[3:a]aresample=48000,atrim=duration={student_duration:.3f},asetpts=PTS-STARTPTS,aecho=0.8:0.9:60:0.40,volume=1.25,adelay={round(student_start * 1000)}:all=1[student];"
+        f"[4:a]aresample=48000,volume=0.22,atrim=duration={length:.3f},asetpts=PTS-STARTPTS[music];"
+        f"[teacher][student]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,volume=1.0,apad,atrim=duration={length:.3f}[voicebus];"
         f"[music]apad,atrim=duration={length:.3f}[musicpad];"
         "[voicebus][musicpad]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.95[a]"
     )

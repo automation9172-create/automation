@@ -64,29 +64,72 @@ def plan_batch(assets: list[Asset], history_path, count: int = 5, on_date: date 
                     letter = chr(ord("a") + start + offset)
                     candidates = [asset for asset in assets if asset.letter == letter]
                     chosen.append(rng.choice(candidates or assets))
-                title = f"Learn ABC with {chosen[0].name}, {chosen[1].name} & More | Sing Along #Shorts"
+                title = (
+                    f"{chosen[0].letter.upper()} for {chosen[0].name} | "
+                    f"{chosen[1].letter.upper()} for {chosen[1].name} | "
+                    f"ABC Phonics Song | Kids Learning #Shorts"
+                )
+                desc = (
+                    f"{chosen[0].letter.upper()} for {chosen[0].name} | "
+                    f"{chosen[1].letter.upper()} for {chosen[1].name} | "
+                    f"{chosen[2].letter.upper()} for {chosen[2].name}\n"
+                    "Watch, sing, and say it aloud! Perfect for toddlers and preschoolers.\n\n"
+                    "#Shorts #ABCSong #PhonicsForKids #LearnABC #KidsEducation #AlphabetSong "
+                    "#KidsSong #MadeForKids #Preschool #Toddlers #PhonicsLesson #ABCKids "
+                    "#ChildrenSong #EnglishAlphabet #KindergartenLearning"
+                )
             elif theme == "count":
                 pool = _pool(assets, THEME_POOLS["fruits"])
                 chosen = rng.sample(pool, min(4, len(pool)))
-                title = f"Count to 10 with {chosen[0].name}s! | Kids Counting Song #Shorts"
+                title = f"1 2 3 4 {chosen[0].name.title()}s! | Kids Counting Song | Learn Numbers #Shorts"
+                desc = (
+                    f"Count with {chosen[0].name}, {chosen[1].name}, {chosen[2].name} and more!\n"
+                    "Fun counting practice for kids and toddlers.\n\n"
+                    "#Shorts #CountingSong #KidsLearning #NumbersForKids #MadeForKids "
+                    "#Preschool #Toddlers #KidsEducation #LearnNumbers #123Kids"
+                )
             elif theme == "vehicles":
                 pool = _pool(assets, THEME_POOLS["vehicles"])
                 chosen = rng.sample(pool, min(4, len(pool)))
-                title = "Sing Along with Vehicles! | Kids Song #Shorts"
+                title = f"{chosen[0].name} | {chosen[1].name} | Vehicle Song for Kids | Sing Along #Shorts"
+                desc = (
+                    f"Learn about {chosen[0].name}, {chosen[1].name} and more!\n"
+                    "Sing along and have fun with vehicles!\n\n"
+                    "#Shorts #VehicleSong #KidsLearning #MadeForKids #Preschool "
+                    "#Toddlers #KidsEducation #CarSong #VehiclesForKids"
+                )
             elif theme == "animals":
                 pool = _pool(assets, THEME_POOLS["animals"])
                 chosen = rng.sample(pool, min(4, len(pool)))
-                title = "What Animal Is This? | Kids Quiz #Shorts"
+                title = f"{chosen[0].name} | {chosen[1].name} | Animal Song for Kids | Guess the Animal #Shorts"
+                desc = (
+                    f"Can you guess the animal? {chosen[0].name}, {chosen[1].name} and more!\n"
+                    "Fun animal learning for kids and toddlers.\n\n"
+                    "#Shorts #AnimalSong #KidsLearning #MadeForKids #Preschool "
+                    "#Toddlers #KidsEducation #AnimalsForKids #GuessTheAnimal"
+                )
             elif theme == "colors":
                 chosen = rng.sample(assets, min(4, len(assets)))
-                title = f"Paint the {chosen[0].name}! | Learn Colors for Kids #Shorts"
+                title = f"Learn Colors with {chosen[0].name} | Color Song for Kids #Shorts"
+                desc = (
+                    f"Learn colors with {chosen[0].name}, {chosen[1].name} and more!\n"
+                    "Colorful fun for toddlers and preschoolers.\n\n"
+                    "#Shorts #ColorSong #KidsLearning #MadeForKids #Preschool "
+                    "#Toddlers #KidsEducation #LearnColors #ColorsForKids"
+                )
             else:
                 chosen = rng.sample(assets, min(4, len(assets)))
-                title = "Can You Guess These? | Kids Quiz #Shorts"
+                title = f"Can You Say {chosen[0].name}? | Kids Phonics Quiz | Guess It! #Shorts"
+                desc = (
+                    f"Say {chosen[0].name}, {chosen[1].name} and more aloud!\n"
+                    "Fun phonics quiz for toddlers and preschoolers.\n\n"
+                    "#Shorts #PhonicsQuiz #KidsLearning #MadeForKids #Preschool "
+                    "#Toddlers #KidsEducation #PhonicsForKids #KidsQuiz"
+                )
             signature = _signature(theme, chosen, style)
             if signature in known or any(plan.signature == signature for plan in result):
                 continue
-            made = ShortPlan(signature, theme, title[:100], "Fun, original phonics practice for children. Learn, sing, and say each word aloud! #Shorts", chosen, style)
+            made = ShortPlan(signature, theme, title[:100], desc, chosen, style)
             break
         if made is None:
             raise RuntimeError("Could not find a non-repeating Shorts plan after 200 attempts")
